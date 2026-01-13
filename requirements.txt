@@ -1,0 +1,9 @@
+flask==3.0.0
+moviepy==1.0.3
+opencv-python>=4.8.0
+Pillow>=10.0.0
+numpy>=1.24.0
+tqdm>=4.66.0
+librosa>=0.10.0
+pillow-heif>=0.13.0
+setuptools>=65.0.0

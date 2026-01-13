@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PyMontage - Slideshow Creator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px 0; }
+        .container { max-width: 900px; margin-top: 30px; background: white; padding: 40px; border-radius: 15px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+        #loading { display: none; text-align: center; margin-top: 20px; }
+        .config-section { background-color: #f8f9fa; padding: 20px; border-radius: 10px; margin-top: 20px; }
+        .config-toggle { cursor: pointer; color: #667eea; font-weight: 600; }
+        .config-toggle:hover { text-decoration: underline; }
+        #advancedConfig { display: none; }
+        h1 { color: #667eea; font-weight: 700; }
+        .form-label { font-weight: 600; color: #495057; }
+        .section-header { color: #667eea; font-weight: 600; margin-top: 20px; margin-bottom: 15px; border-bottom: 2px solid #667eea; padding-bottom: 5px; }
+        
+        /* File Preview Styles */
+        .file-preview-container { margin-top: 15px; max-height: 300px; overflow-y: auto; border: 2px dashed #667eea; border-radius: 8px; padding: 15px; background: #f8f9fa; }
+        .file-preview-item { display: flex; align-items: center; padding: 10px; margin-bottom: 8px; background: white; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .file-preview-img { width: 60px; height: 60px; object-fit: cover; border-radius: 5px; margin-right: 15px; }
+        .file-preview-info { flex: 1; }
+        .file-preview-name { font-weight: 600; color: #333; margin-bottom: 3px; }
+        .file-preview-size { font-size: 0.85em; color: #666; }
+        .file-preview-remove { cursor: pointer; color: #dc3545; font-size: 1.2em; padding: 5px 10px; }
+        .file-preview-remove:hover { color: #bb2d3b; }
+        .audio-preview-item { background: #e7f3ff; border-left: 4px solid #0d6efd; }
+        .audio-preview-icon { width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; background: #0d6efd; color: white; border-radius: 5px; margin-right: 15px; font-size: 1.8em; }
+        .empty-preview { text-align: center; color: #999; padding: 20px; }
+        .file-count-badge { background: #667eea; color: white; padding: 3px 10px; border-radius: 12px; font-size: 0.85em; margin-left: 10px; }
+        
+        /* Progress Bar Styles */
+        #progressContainer { display: none; margin-top: 20px; }
+        .progress { height: 30px; border-radius: 15px; }
+        .progress-bar { font-weight: 600; font-size: 0.9em; }
+        #progressText { text-align: center; margin-top: 10px; color: #667eea; font-weight: 600; }
+        
+        /* Layout Checkbox Styles */
+        .layout-checkbox-group { display: flex; flex-direction: column; gap: 10px; }
+        .layout-checkbox { display: flex; align-items: center; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+        .layout-checkbox:hover { border-color: #667eea; background: #f8f9fa; }
+        .layout-checkbox input[type="checkbox"] { margin-right: 10px; width: 20px; height: 20px; cursor: pointer; }
+        .layout-checkbox.checked { border-color: #667eea; background: #e8f0fe; }
+    </style>
+</head>
+<body>
+
+<div class="container shadow">
+    <h1 class="text-center mb-2">🎬 PyMontage</h1>
+    <p class="text-center text-muted mb-4">Automatic Video Slideshow Creator</p>
+    
+    <form id="videoForm" action="/create" method="post" enctype="multipart/form-data" onsubmit="return handleSubmit()">
+        
+        <!-- Images Upload -->
+        <div class="mb-3">
+            <label class="form-label">
+                📸 Select Images (multiple allowed)
+                <span id="imageCountBadge" class="file-count-badge" style="display: none;">0 images</span>
+            </label>
+            <input type="file" id="imagesInput" class="form-control" multiple accept="image/*" onchange="handleImageSelection()">
+            <small class="text-muted">Supports JPG, PNG, HEIC, and more. You can add images multiple times without removing previous ones.</small>
+            <div id="imagePreview" class="file-preview-container" style="display: none;"></div>
+        </div>
+
+        <!-- Audio Upload -->
+        <div class="mb-3">
+            <label class="form-label">
+                🎵 Select Background Music (MP3/WAV)
+                <span id="audioCountBadge" class="file-count-badge" style="display: none;">0 tracks</span>
+            </label>
+            <input type="file" id="audioInput" class="form-control" accept="audio/*" multiple onchange="handleAudioSelection()">
+            <small class="text-muted">Multiple tracks will be played one after another. First track = main audio.</small>
+            <div id="audioPreview" class="file-preview-container" style="display: none;"></div>
+        </div>
+
+        <!-- Text Inputs -->
+        <div class="row">
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label class="form-label">Intro Text:</label>
+                    <input type="text" name="intro_text" class="form-control" value="Our Family Memories" placeholder="Opening title">
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label class="form-label">Outro Text:</label>
+                    <input type="text" name="outro_text" class="form-control" value="Thanks for Watching" placeholder="Closing title">
+                </div>
+            </div>
+        </div>
+
+        <!-- Advanced Configuration Toggle -->
+        <div class="text-center my-3">
+            <span class="config-toggle" onclick="toggleAdvanced()">⚙️ Show Advanced Settings</span>
+        </div>
+
+        <!-- Advanced Configuration Section -->
+        <div id="advancedConfig" class="config-section">
+            
+            <div class="section-header">📐 Video Resolution</div>
+            <div class="mb-3">
+                <label class="form-label">Resolution Preset:</label>
+                <select id="resolutionPreset" class="form-select" onchange="updateResolution()">
+                    <option value="1280x720">HD 720p (1280 × 720)</option>
+                    <option value="1920x1080" selected>Full HD 1080p (1920 × 1080)</option>
+                    <option value="2560x1440">2K QHD (2560 × 1440)</option>
+                    <option value="3840x2160">4K UHD (3840 × 2160)</option>
+                    <option value="custom">Custom...</option>
+                </select>
+            </div>
+            <div class="row" id="customResolution" style="display: none;">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">Width (pixels):</label>
+                        <input type="number" id="customWidth" class="form-control" value="1920" min="640" max="7680">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">Height (pixels):</label>
+                        <input type="number" id="customHeight" class="form-control" value="1080" min="480" max="4320">
+                    </div>
+                </div>
+            </div>
+            <input type="hidden" name="target_width" id="target_width" value="1920">
+            <input type="hidden" name="target_height" id="target_height" value="1080">
+
+            <div class="section-header">⏱️ Timing Settings</div>
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label class="form-label">Transition Duration (sec):</label>
+                        <input type="number" name="transition_duration" class="form-control" value="1.0" min="0" max="3" step="0.1">
+                        <small class="text-muted">Crossfade time</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label class="form-label">Intro Card Duration (sec):</label>
+                        <input type="number" name="intro_card_duration" class="form-control" value="3.0" min="0.5" max="10" step="0.5">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label class="form-label">Outro Card Duration (sec):</label>
+                        <input type="number" name="outro_card_duration" class="form-control" value="3.0" min="0.5" max="10" step="0.5">
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">Opening Pause (sec):</label>
+                        <input type="number" name="opening_pause" class="form-control" value="2.0" min="0" max="10" step="0.5">
+                        <small class="text-muted">Black screen before intro</small>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">Closing Pause (sec):</label>
+                        <input type="number" name="closing_pause" class="form-control" value="2.0" min="0" max="10" step="0.5">
+                        <small class="text-muted">Black screen after outro</small>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="section-header">🎶 Audio Settings</div>
+            <div class="mb-3">
+                <label class="form-label">Audio Crossfade Duration (sec):</label>
+                <input type="number" name="audio_crossfade" class="form-control" value="2.0" min="0" max="10" step="0.5">
+                <small class="text-muted">Smooth transition overlap between multiple soundtracks</small>
+            </div>
+
+            <div class="section-header">🎨 Layout Modes (Select Multiple)</div>
+            <div class="mb-3">
+                <label class="form-label">Enable layout types (at least one required):</label>
+                <div class="layout-checkbox-group">
+                    <label class="layout-checkbox checked">
+                        <input type="checkbox" name="enable_grid_2x2" value="true" checked onchange="updateLayoutCheckbox(this)">
+                        <span><strong>Grid 2×2</strong> - 4 horizontal images per slide</span>
+                    </label>
+                    <label class="layout-checkbox checked">
+                        <input type="checkbox" name="enable_grid_1x3" value="true" checked onchange="updateLayoutCheckbox(this)">
+                        <span><strong>Grid 1×3</strong> - 3 vertical images per slide</span>
+                    </label>
+                    <label class="layout-checkbox checked">
+                        <input type="checkbox" name="enable_collage" value="true" checked onchange="updateLayoutCheckbox(this)">
+                        <span><strong>Collage 1×2</strong> - 2 images per slide</span>
+                    </label>
+                    <label class="layout-checkbox checked">
+                        <input type="checkbox" name="enable_single" value="true" checked onchange="updateLayoutCheckbox(this)">
+                        <span><strong>Single Image</strong> - 1 image per slide</span>
+                    </label>
+                </div>
+                <small class="text-muted">The engine will automatically choose the best layout based on image orientations and your selections.</small>
+            </div>
+
+            <div class="section-header">⚖️ Display Weights (Relative Duration)</div>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">Grid Weight:</label>
+                        <input type="number" name="grid_weight" class="form-control" value="2.0" min="0.5" max="5" step="0.25">
+                        <small class="text-muted">2x2 Grid slides</small>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">Collage Weight:</label>
+                        <input type="number" name="collage_weight" class="form-control" value="1.5" min="0.5" max="5" step="0.25">
+                        <small class="text-muted">2-image slides</small>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">Triple Weight:</label>
+                        <input type="number" name="triple_weight" class="form-control" value="1.75" min="0.5" max="5" step="0.25">
+                        <small class="text-muted">3-image slides</small>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">Single Weight:</label>
+                        <input type="number" name="single_weight" class="form-control" value="1.0" min="0.5" max="5" step="0.25">
+                        <small class="text-muted">Single image slides</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-header">🎬 Video Quality</div>
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label class="form-label">FPS:</label>
+                        <select name="video_fps" class="form-select">
+                            <option value="24">24 fps (cinematic)</option>
+                            <option value="30" selected>30 fps (standard)</option>
+                            <option value="60">60 fps (smooth)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label class="form-label">Bitrate:</label>
+                        <select name="video_bitrate" class="form-select">
+                            <option value="2000k">2000k (low)</option>
+                            <option value="4000k">4000k (medium)</option>
+                            <option value="8000k" selected>8000k (high)</option>
+                            <option value="15000k">15000k (ultra)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label class="form-label">Quality (CRF):</label>
+                        <input type="number" name="video_quality" class="form-control" value="20" min="18" max="32">
+                        <small class="text-muted">Lower = better (18-28)</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-header">🔤 Text Styling</div>
+            <div class="mb-3">
+                <label class="form-label">Font Family:</label>
+                <select name="font_family" class="form-select">
+                    <option value="trebucbd.ttf">Trebuchet MS Bold</option>
+                    <option value="arial.ttf">Arial</option>
+                    <option value="arialbd.ttf" selected>Arial Bold</option>
+                    <option value="calibri.ttf">Calibri</option>
+                    <option value="calibrib.ttf">Calibri Bold</option>
+                    <option value="comic.ttf">Comic Sans MS</option>
+                    <option value="comicbd.ttf">Comic Sans MS Bold</option>
+                    <option value="times.ttf">Times New Roman</option>
+                    <option value="timesbd.ttf">Times New Roman Bold</option>
+                    <option value="verdana.ttf">Verdana</option>
+                    <option value="verdanab.ttf">Verdana Bold</option>
+                </select>
+                <small class="text-muted">Font for titles and date overlays</small>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">Title Font Size:</label>
+                        <input type="number" name="title_font_size" class="form-control" value="100" min="30" max="200" step="10">
+                        <small class="text-muted">Intro/Outro text size</small>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">Date Font Size:</label>
+                        <input type="number" name="date_font_size" class="form-control" value="70" min="20" max="150" step="10">
+                        <small class="text-muted">Date overlay size</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-header">🖼️ Image Processing</div>
+            <div class="mb-3">
+                <label class="form-label">Max Image Width (pixels):</label>
+                <select name="max_image_width" class="form-select">
+                    <option value="1920">1920 (fast, lower memory)</option>
+                    <option value="2400">2400 (balanced)</option>
+                    <option value="3840" selected>3840 (high quality)</option>
+                    <option value="4800">4800 (very slow, max quality)</option>
+                </select>
+                <small class="text-muted">Images are downscaled to this width to save memory</small>
+            </div>
+
+        </div>
+
+        <button type="submit" class="btn btn-success w-100 btn-lg mt-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
+            🚀 Create & Download Video
+        </button>
+    </form>
+
+    <div id="loading">
+        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
+        <p class="mt-3 h5">Creating your video... This may take several minutes.</p>
+        <p class="text-muted">Please don't close this window.</p>
+    </div>
+    
+    <div id="progressContainer">
+        <h5 class="text-center mb-3">Video Creation Progress</h5>
+        <div class="progress">
+            <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+        </div>
+        <div id="progressText">Initializing...</div>
+    </div>
+</div>
+
+<script>
+    // Store selected files
+    let selectedImages = [];
+    let selectedAudio = [];
+    let progressInterval = null;
+
+    function toggleAdvanced() {
+        const config = document.getElementById('advancedConfig');
+        const toggle = document.querySelector('.config-toggle');
+        if (config.style.display === 'none' || config.style.display === '') {
+            config.style.display = 'block';
+            toggle.textContent = '⚙️ Hide Advanced Settings';
+        } else {
+            config.style.display = 'none';
+            toggle.textContent = '⚙️ Show Advanced Settings';
+        }
+    }
+    
+    function updateResolution() {
+        const preset = document.getElementById('resolutionPreset').value;
+        const customDiv = document.getElementById('customResolution');
+        const widthInput = document.getElementById('target_width');
+        const heightInput = document.getElementById('target_height');
+        
+        if (preset === 'custom') {
+            customDiv.style.display = 'flex';
+            widthInput.value = document.getElementById('customWidth').value;
+            heightInput.value = document.getElementById('customHeight').value;
+        } else {
+            customDiv.style.display = 'none';
+            const [width, height] = preset.split('x');
+            widthInput.value = width;
+            heightInput.value = height;
+        }
+    }
+    
+    // Update hidden inputs when custom values change
+    document.addEventListener('DOMContentLoaded', function() {
+        const customWidth = document.getElementById('customWidth');
+        const customHeight = document.getElementById('customHeight');
+        if (customWidth && customHeight) {
+            customWidth.addEventListener('input', () => {
+                document.getElementById('target_width').value = customWidth.value;
+            });
+            customHeight.addEventListener('input', () => {
+                document.getElementById('target_height').value = customHeight.value;
+            });
+        }
+    });
+    
+    function updateLayoutCheckbox(checkbox) {
+        const label = checkbox.closest('.layout-checkbox');
+        if (checkbox.checked) {
+            label.classList.add('checked');
+        } else {
+            label.classList.remove('checked');
+        }
+    }
+
+    function handleImageSelection() {
+        const input = document.getElementById('imagesInput');
+        const newFiles = Array.from(input.files);
+        
+        // Add new files to existing array (avoid duplicates)
+        newFiles.forEach(file => {
+            const isDuplicate = selectedImages.some(existing => 
+                existing.name === file.name && existing.size === file.size
+            );
+            if (!isDuplicate) {
+                selectedImages.push(file);
+            }
+        });
+        
+        updateImagePreview();
+        input.value = ''; // Clear input so same files can be added again if removed
+    }
+
+    function updateImagePreview() {
+        const preview = document.getElementById('imagePreview');
+        const badge = document.getElementById('imageCountBadge');
+        
+        if (selectedImages.length === 0) {
+            preview.style.display = 'none';
+            badge.style.display = 'none';
+            return;
+        }
+        
+        preview.style.display = 'block';
+        badge.style.display = 'inline-block';
+        badge.textContent = `${selectedImages.length} image${selectedImages.length !== 1 ? 's' : ''}`;
+        
+        preview.innerHTML = '';
+        selectedImages.forEach((file, index) => {
+            const item = document.createElement('div');
+            item.className = 'file-preview-item';
+            
+            const img = document.createElement('img');
+            img.className = 'file-preview-img';
+            img.src = URL.createObjectURL(file);
+            
+            const info = document.createElement('div');
+            info.className = 'file-preview-info';
+            
+            const name = document.createElement('div');
+            name.className = 'file-preview-name';
+            name.textContent = file.name;
+            
+            const size = document.createElement('div');
+            size.className = 'file-preview-size';
+            size.textContent = `${(file.size / 1024 / 1024).toFixed(2)} MB`;
+            
+            info.appendChild(name);
+            info.appendChild(size);
+            
+            const removeBtn = document.createElement('span');
+            removeBtn.className = 'file-preview-remove';
+            removeBtn.innerHTML = '&times;';
+            removeBtn.title = 'Remove this image';
+            removeBtn.onclick = () => removeImage(index);
+            
+            item.appendChild(img);
+            item.appendChild(info);
+            item.appendChild(removeBtn);
+            preview.appendChild(item);
+        });
+    }
+
+    function removeImage(index) {
+        selectedImages.splice(index, 1);
+        updateImagePreview();
+    }
+
+    function handleAudioSelection() {
+        const input = document.getElementById('audioInput');
+        const newFiles = Array.from(input.files);
+        
+        // Add new audio files (avoid duplicates)
+        newFiles.forEach(file => {
+            const isDuplicate = selectedAudio.some(existing => 
+                existing.name === file.name && existing.size === file.size
+            );
+            if (!isDuplicate) {
+                selectedAudio.push(file);
+            }
+        });
+        
+        updateAudioPreview();
+        input.value = '';
+    }
+
+    function updateAudioPreview() {
+        const preview = document.getElementById('audioPreview');
+        const badge = document.getElementById('audioCountBadge');
+        
+        if (selectedAudio.length === 0) {
+            preview.style.display = 'none';
+            badge.style.display = 'none';
+            return;
+        }
+        
+        preview.style.display = 'block';
+        badge.style.display = 'inline-block';
+        badge.textContent = `${selectedAudio.length} track${selectedAudio.length !== 1 ? 's' : ''}`;
+        
+        preview.innerHTML = '';
+        selectedAudio.forEach((file, index) => {
+            const item = document.createElement('div');
+            item.className = 'file-preview-item audio-preview-item';
+            
+            const icon = document.createElement('div');
+            icon.className = 'audio-preview-icon';
+            icon.innerHTML = '♪';
+            
+            const info = document.createElement('div');
+            info.className = 'file-preview-info';
+            
+            const name = document.createElement('div');
+            name.className = 'file-preview-name';
+            name.textContent = `${index + 1}. ${file.name}`;
+            
+            const size = document.createElement('div');
+            size.className = 'file-preview-size';
+            size.textContent = `${(file.size / 1024 / 1024).toFixed(2)} MB`;
+            
+            info.appendChild(name);
+            info.appendChild(size);
+            
+            const removeBtn = document.createElement('span');
+            removeBtn.className = 'file-preview-remove';
+            removeBtn.innerHTML = '&times;';
+            removeBtn.title = 'Remove this track';
+            removeBtn.onclick = () => removeAudio(index);
+            
+            item.appendChild(icon);
+            item.appendChild(info);
+            item.appendChild(removeBtn);
+            preview.appendChild(item);
+        });
+    }
+    
+    function removeAudio(index) {
+        selectedAudio.splice(index, 1);
+        updateAudioPreview();
+    }
+    
+    function simulateProgress() {
+        let progress = 0;
+        const stages = [
+            { end: 10, text: 'Loading images...' },
+            { end: 20, text: 'Analyzing audio...' },
+            { end: 30, text: 'Calculating timing...' },
+            { end: 50, text: 'Creating clips...' },
+            { end: 70, text: 'Adding transitions...' },
+            { end: 85, text: 'Rendering video...' },
+            { end: 95, text: 'Finalizing...' }
+        ];
+        
+        let stageIndex = 0;
+        progressInterval = setInterval(() => {
+            if (stageIndex < stages.length) {
+                const stage = stages[stageIndex];
+                progress = Math.min(progress + Math.random() * 3, stage.end);
+                
+                document.getElementById('progressBar').style.width = progress + '%';
+                document.getElementById('progressBar').textContent = Math.floor(progress) + '%';
+                document.getElementById('progressText').textContent = stage.text;
+                
+                if (progress >= stage.end - 1) {
+                    stageIndex++;
+                }
+            }
+        }, 1000);
+    }
+
+    function handleSubmit() {
+        if (selectedImages.length === 0) {
+            alert('Please select at least one image!');
+            return false;
+        }
+        
+        if (selectedAudio.length === 0) {
+            alert('Please select at least one audio file!');
+            return false;
+        }
+        
+        // Create a new FormData and add all selected files
+        const form = document.getElementById('videoForm');
+        const formData = new FormData(form);
+        
+        // Remove any existing image/audio files from form
+        formData.delete('images');
+        formData.delete('audio');
+        
+        // Add all selected images
+        selectedImages.forEach(file => {
+            formData.append('images', file);
+        });
+        
+        // Add all selected audio files
+        selectedAudio.forEach(file => {
+            formData.append('audio', file);
+        });
+        
+        // Submit via fetch API
+        document.querySelector('form').style.display = 'none';
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('progressContainer').style.display = 'block';
+        
+        // Start progress simulation
+        simulateProgress();
+        
+        fetch('/create', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            clearInterval(progressInterval);
+            if (!response.ok) {
+                throw new Error('Video creation failed');
+            }
+            return response.blob();
+        })
+        .then(blob => {
+            // Complete progress
+            document.getElementById('progressBar').style.width = '100%';
+            document.getElementById('progressBar').textContent = '100%';
+            document.getElementById('progressText').textContent = 'Download starting...';
+            
+            // Download the video
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'my_slideshow.mp4';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            // Reset form
+            setTimeout(() => {
+                document.querySelector('form').style.display = 'block';
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('progressContainer').style.display = 'none';
+                document.getElementById('progressBar').style.width = '0%';
+                alert('Video created successfully!');
+            }, 1000);
+        })
+        .catch(error => {
+            clearInterval(progressInterval);
+            alert('Error creating video: ' + error.message);
+            document.querySelector('form').style.display = 'block';
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('progressContainer').style.display = 'none';
+        });
+        
+        return false; // Prevent default form submission
+    }
+</script>
+
+</body>
+</html>

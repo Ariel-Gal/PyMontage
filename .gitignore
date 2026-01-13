@@ -1,0 +1,75 @@
+# PyMontage - Git Ignore File
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# Temporary Folders
+temp_uploads/
+temp_outputs/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyc
+
+# Distribution / Packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Flask
+instance/
+.webassets-cache
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+*.db
+
+# Video Cache
+*.cache
+
+# Test Files
+test_output/
+test_images/
+
+# Environment Variables
+.env
+.env.local
+
+# Logs
+*.log
+
+# Media files (optional - uncomment if you don't want to track test media)
+# *.mp4
+# *.mp3
+# *.wav
+# *.jpg
+# *.jpeg
+# *.png
+
