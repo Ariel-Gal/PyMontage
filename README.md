@@ -58,12 +58,22 @@
    pip install -r requirements.txt
    ```
 
-4. **Run the application:**
+4. **Prepare media paths (pick one):**
+   - **Default (repo-relative):** place photos in `input/photos/`, background track as `input/audio.mp3`, and ensure `output/` exists for the rendered video.
+   - **Custom paths:** set env vars before running:
+     ```bash
+     set PYMONTAGE_IMAGE_FOLDER="C:\path\to\photos"   # Windows
+     set PYMONTAGE_AUDIO_FILE="C:\path\to\music.mp3"
+     set PYMONTAGE_OUTPUT_FILE="C:\path\to\slideshow.mp4"
+     ```
+     (macOS/Linux: use `export VAR=value`)
+
+5. **Run the application:**
    ```bash
    python app.py
    ```
 
-5. **Open your browser:**
+6. **Open your browser:**
    Navigate to `http://127.0.0.1:5000`
 
 ## 📖 Usage
@@ -93,6 +103,10 @@
 6. **Download**: Your video will automatically download when ready
 
 ## ⚙️ Configuration Options
+
+### Paths & environment variables
+- Default (repo-relative): images in `input/photos/`, audio in `input/audio.mp3`, output to `output/slideshow.mp4`.
+- Override for CI/servers by setting `PYMONTAGE_IMAGE_FOLDER`, `PYMONTAGE_AUDIO_FILE`, `PYMONTAGE_OUTPUT_FILE`.
 
 ### Basic Settings
 - **Intro Text**: Opening title displayed at the beginning
@@ -145,9 +159,11 @@ PyMontage/
 ├── templates/
 │   └── index.html          # Web interface
 ├── requirements.txt        # Python dependencies
-├── README.md              # This file
-├── temp_uploads/          # Temporary storage for uploaded files
-└── temp_outputs/          # Temporary storage for generated videos
+├── README.md               # This file
+├── input/
+│   ├── photos/             # Default images location
+│   └── audio.mp3           # Default soundtrack
+└── output/                 # Rendered videos (default target)
 ```
 
 ### Supported Formats
