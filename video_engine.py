@@ -79,9 +79,11 @@ except ImportError:
 # ==================== CONFIGURATION ====================
 
 # ===== PATHS =====
-IMAGE_FOLDER_PATH = r"C:\Users\user\Downloads\shabbat\photos"
-AUDIO_FILE_PATH = r"C:\Users\user\Downloads\shabbat\music\full4.mp3"
-OUTPUT_FILE_PATH = r"C:\Users\user\Downloads\shabbat\output_slideshow.mp4"
+# Use repo-relative defaults with optional environment overrides for portability (works on CI/GitHub too)
+PROJECT_ROOT = Path(__file__).resolve().parent
+IMAGE_FOLDER_PATH = os.getenv("PYMONTAGE_IMAGE_FOLDER", str(PROJECT_ROOT / "input" / "photos"))
+AUDIO_FILE_PATH = os.getenv("PYMONTAGE_AUDIO_FILE", str(PROJECT_ROOT / "input" / "audio.mp3"))
+OUTPUT_FILE_PATH = os.getenv("PYMONTAGE_OUTPUT_FILE", str(PROJECT_ROOT / "output" / "slideshow.mp4"))
 
 # ===== TEXT CONTENT =====
 INTRO_TEXT = "Our Family Memories"
