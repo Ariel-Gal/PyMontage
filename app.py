@@ -7,6 +7,7 @@ import requests
 import json
 import tempfile
 from flask import Flask, render_template, request, send_file, after_this_request, jsonify
+from werkzeug.utils import secure_filename
 from video_engine import generate_video_from_web, install_google_font  # Import from video_engine.py
 
 app = Flask(__name__)
@@ -145,7 +146,8 @@ def preview():
         files = request.files.getlist('images')
         for file in files:
             if file.filename:
-                file.save(os.path.join(session_images_path, file.filename))
+                safe_filename = secure_filename(file.filename)
+                file.save(os.path.join(session_images_path, safe_filename))
         
         # Generate preview
         success, message = generate_video_from_web(
@@ -224,7 +226,8 @@ def create_video():
         files = request.files.getlist('images')
         for file in files:
             if file.filename:
-                file.save(os.path.join(session_images_path, file.filename))
+                safe_filename = secure_filename(file.filename)
+                file.save(os.path.join(session_images_path, safe_filename))
         
         # 3. Get text inputs
         intro_text = request.form.get('intro_text', 'My Slideshow')
