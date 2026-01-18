@@ -13,6 +13,9 @@ from pathlib import Path
 import tempfile
 import json
 import random
+import requests
+import zipfile
+import io
 
 import cv2
 from PIL import Image, ExifTags
@@ -26,9 +29,108 @@ from moviepy.editor import (
     concatenate_audioclips,
     CompositeAudioClip,
 )
+from moviepy.audio.AudioClip import AudioClip
 from tqdm import tqdm
 import numpy as np
 import librosa
+from typing import Optional
+
+# Register HEIF/HEIC support
+try:
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+    print("✅ HEIC/HEIF support enabled")
+except ImportError:
+    print("⚠️ pillow-heif not installed, HEIC/HEIF files won't be supported")
+except Exception as e:
+    print(f"⚠️ Could not enable HEIC/HEIF support: {e}")
+
+def install_google_font(font_name):
+    """
+    Downloads a font from Google Fonts, extracts it, and saves to assets/fonts directory.
+    Uses multiple fallback methods to download the font.
+    
+    Args:
+        font_name: Name of the font (e.g., "Heebo", "Roboto")
+    
+    Returns:
+        Path to the installed font file, or None if failed
+    
+    Example:
+        font_path = install_google_font("Heebo")
+        if font_path:
+            TITLE_FONT_PATH = font_path
+    """
+    # Save directory
+    save_dir = os.path.join("assets", "fonts")
+    os.makedirs(save_dir, exist_ok=True)
+    
+    # Check if font already exists (avoid unnecessary downloads)
+    font_path = os.path.join(save_dir, f"{font_name}-Regular.ttf")
+    if os.path.exists(font_path):
+        print(f"✓ Font already installed: {font_path}")
+        return font_path
+
+    print(f"📥 Downloading font: {font_name} from Google Fonts...")
+    
+    # Method 1: Try Google Fonts API (requires parsing but works reliably)
+    try:
+        # Get font metadata from Google Fonts API
+        api_url = f"https://fonts.googleapis.com/css?family={font_name.replace(' ', '+')}"
+        response = requests.get(api_url, timeout=30, headers={'User-Agent': 'Mozilla/5.0'})
+        
+        if response.status_code == 200:
+            # Parse CSS to find TTF URL
+            import re
+            # Look for url() in the CSS
+            ttf_urls = re.findall(r'url\((https://[^)]+\.ttf)\)', response.text)
+            
+            if ttf_urls:
+                # Download the first TTF file
+                ttf_response = requests.get(ttf_urls[0], timeout=30)
+                if ttf_response.status_code == 200:
+                    font_path = os.path.join(save_dir, f"{font_name}-Regular.ttf")
+                    with open(font_path, 'wb') as f:
+                        f.write(ttf_response.content)
+                    print(f"✅ Font installed: {font_path}")
+                    return font_path
+        
+        print(f"⚠️ Could not download {font_name} automatically")
+        print(f"💡 You can manually download it from https://fonts.google.com/ and place it in {save_dir}")
+        return None
+                    
+    except Exception as e:
+        print(f"❌ Failed to download font: {e}")
+        print(f"💡 You can manually download {font_name} from https://fonts.google.com/ and place it in {save_dir}")
+        return None
+
+
+def resolve_font_path(font_name: str) -> Optional[str]:
+    """Resolve a font name or path, downloading from Google Fonts if missing."""
+    if not font_name:
+        return None
+
+    # Absolute path
+    if os.path.isabs(font_name) and os.path.exists(font_name):
+        return font_name
+
+    # Relative assets/fonts path
+    assets_path = os.path.join("assets", "fonts", font_name)
+    if os.path.exists(assets_path):
+        return assets_path
+
+    # Windows fonts directory fallback
+    windows_font = os.path.join(r"C:\Windows\Fonts", font_name)
+    if os.path.exists(windows_font):
+        return windows_font
+
+    # Try downloading from Google Fonts (strip extension)
+    base_name = os.path.splitext(font_name)[0]
+    downloaded = install_google_font(base_name)
+    if downloaded and os.path.exists(downloaded):
+        return downloaded
+
+    return None
 
 def read_image_safe(path, max_width=None):
     """
@@ -46,6 +148,28 @@ def read_image_safe(path, max_width=None):
         max_width = MAX_IMAGE_WIDTH
     
     try:
+        # Check if file is HEIC/HEIF (cv2 doesn't support them)
+        path_lower = str(path).lower()
+        if path_lower.endswith(('.heic', '.heif', '.heics', '.heifs')):
+            # Use PIL for HEIC/HEIF files
+            img_pil = Image.open(path)
+            
+            # Convert to RGB if needed
+            if img_pil.mode != 'RGB':
+                img_pil = img_pil.convert('RGB')
+            
+            # OPTIMIZATION: Downscale immediately if image is too large
+            if img_pil.width > max_width:
+                scale_factor = max_width / img_pil.width
+                new_width = max_width
+                new_height = int(img_pil.height * scale_factor)
+                img_pil = img_pil.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            
+            # Convert PIL to OpenCV format
+            img = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
+            return img
+        
+        # For other formats, use cv2 (faster)
         # Open file directly via Python (handles Hebrew correctly)
         with open(path, "rb") as f:
             file_bytes = bytearray(f.read())
@@ -65,15 +189,6 @@ def read_image_safe(path, max_width=None):
     except Exception as e:
         print(f"Error reading file {path}: {e}")
         return None
-
-
-# Try to import pillow-heif for HEIC support
-try:
-    import pillow_heif
-    pillow_heif.register_heif_opener()
-    HEIC_SUPPORT = True
-except ImportError:
-    HEIC_SUPPORT = False
 
 
 # ==================== CONFIGURATION ====================
@@ -1447,6 +1562,42 @@ def calculate_exact_slide_duration(media_groups, audio_duration, use_grid):
     return duration_per_weight
 
 
+def calculate_total_weighted_slides(media_groups, use_grid):
+    """Compute total weighted slides to estimate timing when no audio is provided."""
+    total_weighted_slides = 0.0
+    for group, _ in media_groups:
+        images = [item for item in group if item[2] == 'image']
+        if not images:
+            continue
+
+        if use_grid:
+            horizontal = [img for img in images if not is_image_vertical(img[0])]
+            vertical = [img for img in images if is_image_vertical(img[0])]
+
+            h_grids = len(horizontal) // 4
+            h_remainder = len(horizontal) % 4
+            total_weighted_slides += h_grids * GRID_WEIGHT
+
+            if h_remainder == 2:
+                total_weighted_slides += COLLAGE_WEIGHT
+            else:
+                total_weighted_slides += h_remainder * SINGLE_WEIGHT
+
+            for i in range(0, len(vertical), 2):
+                batch = vertical[i:i+2]
+                if len(batch) == 2:
+                    total_weighted_slides += COLLAGE_WEIGHT
+                else:
+                    total_weighted_slides += SINGLE_WEIGHT * len(batch)
+        else:
+            if len(images) == 2:
+                total_weighted_slides += COLLAGE_WEIGHT
+            else:
+                total_weighted_slides += SINGLE_WEIGHT * len(images)
+
+    return total_weighted_slides
+
+
 def create_mixed_audio(audio_paths, fade_duration=3.0):
     """
     Create a mixed audio track from multiple audio files with smooth crossfading.
@@ -1717,10 +1868,12 @@ def generate_video_from_web(image_folder, audio_paths, output_path, intro_text, 
         DATE_FONT_SIZE = config.get('date_font_size', DATE_FONT_SIZE)
         MAX_IMAGE_WIDTH = config.get('max_image_width', MAX_IMAGE_WIDTH)
         
-        # Font selection
+        # Font selection (supports Google Fonts download and local assets/fonts)
         font_file = config.get('font_family', 'trebucbd.ttf')
-        TITLE_FONT_PATH = f"C:\\Windows\\Fonts\\{font_file}"
-        DATE_FONT_PATH = f"C:\\Windows\\Fonts\\{font_file}"
+        resolved_font = resolve_font_path(font_file)
+        if resolved_font:
+            TITLE_FONT_PATH = resolved_font
+            DATE_FONT_PATH = resolved_font
     
     try:
         import time
@@ -1729,14 +1882,25 @@ def generate_video_from_web(image_folder, audio_paths, output_path, intro_text, 
         # Step 1: Loading
         print("Step 1: Loading media...")
         media_groups = load_and_sort_images(IMAGE_FOLDER_PATH)
+        total_weighted_slides = calculate_total_weighted_slides(media_groups, USE_GRID_2X2)
         
-        # Step 2: Audio - Create mixed audio with crossfading
+        # Step 2: Audio - Create mixed audio with crossfading (or silent fallback)
         print("Step 2: Creating mixed audio with crossfading...")
-        mixed_audio = create_mixed_audio(audio_paths, fade_duration=crossfade_duration)
+        temp_audio_path = os.path.join(os.path.dirname(OUTPUT_FILE_PATH), 'temp_mixed_audio.mp3')
+        try:
+            if audio_paths:
+                mixed_audio = create_mixed_audio(audio_paths, fade_duration=crossfade_duration)
+            else:
+                raise ValueError("No audio paths provided")
+        except Exception as e:
+            fallback_duration_per_weight = config.get('silent_duration_per_weight', 3.0) if config else 3.0
+            intro_time = FIXED_INTRO_TIME
+            estimated_duration = max(intro_time + total_weighted_slides * fallback_duration_per_weight, intro_time + fallback_duration_per_weight)
+            print(f"  ⚠ Audio unavailable ({e}); using silent track ({estimated_duration:.1f}s)")
+            mixed_audio = AudioClip(lambda t: 0.0, duration=estimated_duration, fps=44100)
         audio_duration = mixed_audio.duration
         
         # Save mixed audio temporarily for compose_final_video
-        temp_audio_path = os.path.join(os.path.dirname(OUTPUT_FILE_PATH), 'temp_mixed_audio.mp3')
         mixed_audio.write_audiofile(temp_audio_path, verbose=False, logger=None)
         AUDIO_FILE_PATH = temp_audio_path
         
@@ -1789,5 +1953,157 @@ def generate_video_from_web(image_folder, audio_paths, output_path, intro_text, 
         return False, str(e)
 
 
-if __name__ == "__main__":
-    main()
+def generate_video_preview(image_folder, audio_paths, output_path, intro_text, outro_text, config=None):
+    """
+    Generate a LOW-QUALITY preview video for real-time preview.
+    Minimal processing for fast generation.
+    
+    Args:
+        image_folder: Path to folder containing images
+        audio_paths: List of paths to audio files
+        output_path: Path where preview video will be saved
+        intro_text: Opening title text
+        outro_text: Closing title text
+        config: Dictionary with configuration parameters
+    
+    Returns:
+        (success: bool, message: str)
+    """
+    try:
+        print("🎬 Generating PREVIEW video (low quality, fast render)...")
+        
+        # Ultra-low resolution for preview
+        preview_width = 480
+        preview_height = 270
+        preview_fps = 12  # Low FPS for fast processing
+        preview_quality = 28  # Lower quality
+        
+        # Use configuration or defaults
+        if config is None:
+            config = {}
+        
+        # Get timing from config
+        use_transitions = config.get('use_transitions', False)
+        transition_duration = float(config.get('transition_duration', 1.0)) if use_transitions else 0
+        transition_type = config.get('transition_type', 'crossfadein')
+        
+        # Image duration from config
+        image_duration_setting = config.get('image_duration', 'auto')
+        if image_duration_setting == 'auto':
+            min_duration = float(config.get('min_image_duration', 2.0))
+            max_duration = float(config.get('max_image_duration', 5.0))
+            image_duration = (min_duration + max_duration) / 2  # Use average for preview
+        else:
+            image_duration = float(image_duration_setting)
+        
+        # For preview, keep it short but respect relative timing
+        image_duration = min(image_duration, 3.0)  # Cap at 3 seconds for preview
+        
+        # Effects from config
+        zoom_effect = config.get('zoom_effect', False)
+        zoom_intensity = float(config.get('zoom_intensity', 0.1))
+        
+        # Get images
+        image_files = []
+        for ext in SUPPORTED_EXTENSIONS:
+            image_files.extend(sorted(Path(image_folder).glob(f'*{ext}')))
+            image_files.extend(sorted(Path(image_folder).glob(f'*{ext.upper()}')))
+        
+        image_files = sorted(set(str(f) for f in image_files))
+        
+        if not image_files:
+            return False, "No images found"
+        
+        # Limit to first 5 images for preview
+        image_files = image_files[:5]
+        
+        print(f"📸 Using {len(image_files)} images for preview")
+        print(f"⚙️ Config: transitions={use_transitions}, duration={image_duration:.1f}s, zoom={zoom_effect}")
+        
+        # Create clips with configuration
+        clips = []
+        
+        for img_path in image_files:
+            try:
+                # Read and resize immediately for memory efficiency
+                img = Image.open(img_path)
+                
+                # Convert to RGB if needed (important for HEIC and other formats)
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
+                
+                img.thumbnail((preview_width, preview_height), Image.Resampling.LANCZOS)
+                
+                # Create clip with configured duration
+                clip = ImageClip(np.array(img)).set_duration(image_duration)
+                clip = clip.resize((preview_width, preview_height))
+                
+                # Apply zoom effect if enabled (simplified for preview)
+                if zoom_effect:
+                    # Simple zoom in effect
+                    def zoom_in(t):
+                        scale = 1 + (zoom_intensity * t / image_duration)
+                        return scale
+                    clip = clip.resize(lambda t: zoom_in(t))
+                
+                clips.append(clip)
+            except Exception as e:
+                print(f"⚠️ Skipping image {img_path}: {e}")
+                continue
+        
+        if not clips:
+            return False, "Could not load any images"
+        
+        # Concatenate with or without transitions
+        if use_transitions and len(clips) > 1:
+            print(f"🔄 Adding {transition_type} transitions ({transition_duration}s)")
+            # Apply transitions between clips
+            for i in range(len(clips) - 1):
+                clips[i] = clips[i].crossfadeout(transition_duration)
+            video = concatenate_videoclips(clips, method="compose", padding=-transition_duration)
+        else:
+            # No transitions - simple concatenation
+            video = concatenate_videoclips(clips, method="chain")
+        
+        # Handle audio
+        if audio_paths:
+            try:
+                # Load only first audio file for preview
+                audio = AudioFileClip(audio_paths[0])
+                
+                # Trim audio to match video duration
+                if audio.duration > video.duration:
+                    audio = audio.set_duration(video.duration)
+                else:
+                    # Loop audio if needed
+                    video = video.set_duration(audio.duration)
+                
+                video = video.set_audio(audio)
+            except Exception as e:
+                print(f"⚠️ Could not add audio: {e}")
+        
+        # Set to low FPS
+        video = video.speedx(1.0).set_fps(preview_fps)
+        
+        # Write with minimal encoding
+        print("💾 Writing preview video (this is fast)...")
+        video.write_videofile(
+            output_path,
+            codec='libx264',
+            audio_codec='aac',
+            fps=preview_fps,
+            verbose=False,
+            logger=None,
+            bitrate="500k"  # Very low bitrate
+        )
+        
+        print("✅ Preview video created successfully")
+        return True, "Preview created"
+        
+    except Exception as e:
+        print(f"❌ Error creating preview: {e}")
+        import traceback
+        traceback.print_exc()
+        return False, f"Preview error: {str(e)}"
+
+

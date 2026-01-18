@@ -43,6 +43,22 @@
         .layout-checkbox:hover { border-color: #667eea; background: #f8f9fa; }
         .layout-checkbox input[type="checkbox"] { margin-right: 10px; width: 20px; height: 20px; cursor: pointer; }
         .layout-checkbox.checked { border-color: #667eea; background: #e8f0fe; }
+        
+        /* Live Preview Styles */
+        .preview-section { background: #f0f4ff; border: 2px solid #667eea; border-radius: 10px; padding: 20px; margin-top: 30px; }
+        .preview-title { color: #667eea; font-weight: 700; font-size: 1.2em; margin-bottom: 15px; }
+        .preview-gallery { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; max-height: 260px; overflow-y: auto; }
+        .preview-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: white; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        .preview-thumb { width: 72px; height: 72px; border-radius: 8px; object-fit: cover; background: #e9ecef; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+        .preview-info { flex: 1; min-width: 0; }
+        .preview-name { font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .preview-meta { font-size: 0.85em; color: #666; }
+        .preview-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+        .stat-box { background: white; padding: 15px; border-radius: 8px; border-left: 4px solid #667eea; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .stat-label { font-size: 0.9em; color: #666; margin-bottom: 5px; }
+        .stat-value { font-size: 1.5em; font-weight: 700; color: #667eea; }
+        .stat-unit { font-size: 0.8em; color: #999; margin-left: 5px; }
+        .no-preview { text-align: center; color: #999; padding: 20px; font-style: italic; }
     </style>
 </head>
 <body>
@@ -266,20 +282,30 @@
             <div class="section-header">🔤 Text Styling</div>
             <div class="mb-3">
                 <label class="form-label">Font Family:</label>
-                <select name="font_family" class="form-select">
-                    <option value="trebucbd.ttf">Trebuchet MS Bold</option>
-                    <option value="arial.ttf">Arial</option>
-                    <option value="arialbd.ttf" selected>Arial Bold</option>
-                    <option value="calibri.ttf">Calibri</option>
-                    <option value="calibrib.ttf">Calibri Bold</option>
-                    <option value="comic.ttf">Comic Sans MS</option>
-                    <option value="comicbd.ttf">Comic Sans MS Bold</option>
-                    <option value="times.ttf">Times New Roman</option>
-                    <option value="timesbd.ttf">Times New Roman Bold</option>
-                    <option value="verdana.ttf">Verdana</option>
-                    <option value="verdanab.ttf">Verdana Bold</option>
-                </select>
-                <small class="text-muted">Font for titles and date overlays</small>
+                <div class="input-group">
+                    <select name="font_family" id="fontSelect" class="form-select">
+                        <option value="trebucbd.ttf">Trebuchet MS Bold</option>
+                        <option value="arial.ttf">Arial</option>
+                        <option value="arialbd.ttf" selected>Arial Bold</option>
+                        <option value="calibri.ttf">Calibri</option>
+                        <option value="calibrib.ttf">Calibri Bold</option>
+                        <option value="comic.ttf">Comic Sans MS</option>
+                        <option value="comicbd.ttf">Comic Sans MS Bold</option>
+                        <option value="times.ttf">Times New Roman</option>
+                        <option value="timesbd.ttf">Times New Roman Bold</option>
+                        <option value="verdana.ttf">Verdana</option>
+                        <option value="verdanab.ttf">Verdana Bold</option>
+                    </select>
+                </div>
+                <div class="mt-2">
+                    <label class="form-label">Search Google Fonts:</label>
+                    <div class="input-group">
+                        <input type="text" id="fontSearchInput" class="form-control" placeholder="e.g., Roboto" />
+                        <button class="btn btn-outline-secondary" type="button" onclick="searchFonts()">Search</button>
+                    </div>
+                    <div id="fontSearchResults" class="mt-2" style="max-height: 180px; overflow-y: auto;"></div>
+                </div>
+                <small class="text-muted">Select a system font or search & download from Google Fonts</small>
             </div>
             <div class="row">
                 <div class="col-md-6">
@@ -317,6 +343,35 @@
         </button>
     </form>
 
+    <!-- Technical Details Section -->
+    <div id="technicalDetails" class="preview-section" style="display: none; margin-top: 30px;">
+        <div class="preview-title">📊 Technical Details</div>
+        
+        <div class="mb-3">
+            <h6 class="text-muted">📸 Selected Images</h6>
+            <div id="previewGallery" class="preview-gallery"></div>
+        </div>
+
+        <div class="preview-stats">
+            <div class="stat-box">
+                <div class="stat-label">📊 Total Images</div>
+                <div><span class="stat-value" id="statImages">0</span> <span class="stat-unit">photos</span></div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">🎵 Audio Duration</div>
+                <div><span class="stat-value" id="statAudioDuration">0:00</span> <span class="stat-unit">minutes</span></div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">⏱️ Estimated Duration</div>
+                <div><span class="stat-value" id="statVideoDuration">0:00</span> <span class="stat-unit">minutes</span></div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">📁 File Size</div>
+                <div><span class="stat-value" id="statFileSize">0</span> <span class="stat-unit">MB</span></div>
+            </div>
+        </div>
+    </div>
+
     <div id="loading">
         <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
         <p class="mt-3 h5">Creating your video... This may take several minutes.</p>
@@ -347,6 +402,162 @@
         } else {
             config.style.display = 'none';
             toggle.textContent = '⚙️ Show Advanced Settings';
+        }
+    }
+
+    function updatePreview() {
+        const technicalDetails = document.getElementById('technicalDetails');
+        
+        if (selectedImages.length === 0 && selectedAudio.length === 0) {
+            technicalDetails.style.display = 'none';
+            return;
+        }
+        
+        technicalDetails.style.display = 'block';
+        
+        // Update image gallery (scrollable list)
+        const gallery = document.getElementById('previewGallery');
+        gallery.innerHTML = '';
+        
+        selectedImages.forEach(file => {
+            const item = document.createElement('div');
+            item.className = 'preview-item';
+            
+            const info = document.createElement('div');
+            info.className = 'preview-info';
+            
+            const name = document.createElement('div');
+            name.className = 'preview-name';
+            name.textContent = file.name;
+            
+            const meta = document.createElement('div');
+            meta.className = 'preview-meta';
+            meta.textContent = `${(file.size/1024/1024).toFixed(2)} MB`;
+            
+            // Check if HEIC/HEIF - need special handling
+            const isHeic = file.name.toLowerCase().match(/\.(heic|heif)$/);
+            
+            if (isHeic) {
+                const thumb = document.createElement('div');
+                thumb.className = 'preview-thumb';
+                thumb.textContent = '📷';
+                thumb.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+                thumb.style.color = 'white';
+                thumb.style.fontSize = '24px';
+                thumb.title = file.name + ' (HEIC format)';
+                item.appendChild(thumb);
+            } else {
+                const img = document.createElement('img');
+                img.className = 'preview-thumb';
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+                item.appendChild(img);
+            }
+            
+            info.appendChild(name);
+            info.appendChild(meta);
+            item.appendChild(info);
+            gallery.appendChild(item);
+        });
+        
+        // Update statistics
+        document.getElementById('statImages').textContent = selectedImages.length;
+        
+        // Calculate total file size
+        const totalSize = selectedImages.reduce((sum, file) => sum + file.size, 0) + 
+                         selectedAudio.reduce((sum, file) => sum + file.size, 0);
+        document.getElementById('statFileSize').textContent = (totalSize / 1024 / 1024).toFixed(2);
+        
+        // Estimate audio duration (approximation)
+        updateVideoDurationEstimate();
+    }
+    
+    function updateVideoDurationEstimate() {
+        // Estimate audio duration based on file size (128kbps typical)
+        let audioDuration = 0;
+        selectedAudio.forEach(file => {
+            // Rough estimate: 128 kbps = 16 KB/s
+            const estimatedSeconds = (file.size / 16384) * 1;
+            audioDuration += estimatedSeconds;
+        });
+        
+        const audioMinutes = Math.floor(audioDuration / 60);
+        const audioSeconds = Math.floor(audioDuration % 60);
+        document.getElementById('statAudioDuration').textContent = 
+            `${audioMinutes}:${audioSeconds.toString().padStart(2, '0')}`;
+        
+        // Calculate intro and outro duration
+        const introCard = parseFloat(document.querySelector('input[name="intro_card_duration"]')?.value || 3.0);
+        const outroCard = parseFloat(document.querySelector('input[name="outro_card_duration"]')?.value || 3.0);
+        const openingPause = parseFloat(document.querySelector('input[name="opening_pause"]')?.value || 2.0);
+        const closingPause = parseFloat(document.querySelector('input[name="closing_pause"]')?.value || 2.0);
+        
+        const fixedTime = introCard + outroCard + openingPause + closingPause;
+        const videoDuration = audioDuration + fixedTime;
+        
+        const videoMinutes = Math.floor(videoDuration / 60);
+        const videoSeconds = Math.floor(videoDuration % 60);
+        document.getElementById('statVideoDuration').textContent = 
+            `${videoMinutes}:${videoSeconds.toString().padStart(2, '0')}`;
+    }
+
+    async function searchFonts() {
+        const query = document.getElementById('fontSearchInput').value.trim();
+        const resultsContainer = document.getElementById('fontSearchResults');
+        resultsContainer.innerHTML = '';
+        if (!query) return;
+        resultsContainer.textContent = 'Searching...';
+        try {
+            const res = await fetch(`/fonts/search?q=${encodeURIComponent(query)}`);
+            const data = await res.json();
+            resultsContainer.innerHTML = '';
+            if (!data.fonts || data.fonts.length === 0) {
+                resultsContainer.textContent = 'No matches';
+                return;
+            }
+            data.fonts.forEach(name => {
+                const row = document.createElement('div');
+                row.className = 'd-flex align-items-center justify-content-between border p-2 rounded mb-1';
+                row.textContent = name;
+                const btn = document.createElement('button');
+                btn.className = 'btn btn-sm btn-outline-primary';
+                btn.textContent = 'Download & Use';
+                btn.onclick = () => downloadFont(name);
+                row.appendChild(btn);
+                resultsContainer.appendChild(row);
+            });
+        } catch (err) {
+            resultsContainer.textContent = 'Search failed';
+        }
+    }
+
+    async function downloadFont(name) {
+        const resultsContainer = document.getElementById('fontSearchResults');
+        resultsContainer.textContent = `Downloading ${name}...`;
+        try {
+            const res = await fetch('/fonts/download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+            const data = await res.json();
+            if (!data.success || !data.path) {
+                resultsContainer.textContent = data.message || 'Download failed';
+                return;
+            }
+            // Add option to select with downloaded path
+            const select = document.getElementById('fontSelect');
+            const opt = document.createElement('option');
+            opt.value = data.path;
+            opt.textContent = `${data.name} (downloaded)`;
+            select.appendChild(opt);
+            select.value = data.path;
+            resultsContainer.textContent = `${data.name} ready`; 
+        } catch (err) {
+            resultsContainer.textContent = 'Download failed';
         }
     }
     
@@ -406,6 +617,7 @@
         });
         
         updateImagePreview();
+        updatePreview();
         input.value = ''; // Clear input so same files can be added again if removed
     }
 
@@ -462,6 +674,7 @@
     function removeImage(index) {
         selectedImages.splice(index, 1);
         updateImagePreview();
+        updatePreview();
     }
 
     function handleAudioSelection() {
@@ -479,6 +692,7 @@
         });
         
         updateAudioPreview();
+        updatePreview();
         input.value = '';
     }
 
@@ -535,6 +749,7 @@
     function removeAudio(index) {
         selectedAudio.splice(index, 1);
         updateAudioPreview();
+        updatePreview();
     }
     
     function simulateProgress() {
