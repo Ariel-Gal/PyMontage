@@ -1993,7 +1993,6 @@ def generate_video_preview(image_folder, audio_paths, output_path, intro_text, o
         preview_width = 480
         preview_height = 270
         preview_fps = 12  # Low FPS for fast processing
-        preview_quality = 28  # Lower quality
         
         # Use configuration or defaults
         if config is None:
