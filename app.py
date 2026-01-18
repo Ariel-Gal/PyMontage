@@ -177,7 +177,9 @@ def preview():
 @app.route('/get_preview/<filename>')
 def get_preview(filename):
     """Stream preview video"""
-    preview_path = os.path.join(app.config['OUTPUT_FOLDER'], filename)
+    # Sanitize filename to prevent directory traversal
+    safe_filename = secure_filename(filename)
+    preview_path = os.path.join(app.config['OUTPUT_FOLDER'], safe_filename)
     if os.path.exists(preview_path):
         return send_file(preview_path, mimetype='video/mp4')
     return "Preview not found", 404
