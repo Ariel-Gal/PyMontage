@@ -99,13 +99,20 @@ def install_google_font(font_name):
                     font_filename = os.path.basename(ttf_url.split('?')[0])  # Remove query params
                     
                     # If the filename doesn't contain the font name, use our naming convention
-                    if font_name.replace(' ', '') not in font_filename:
-                        # Try to detect variant from URL or default to Regular
-                        if 'Bold' in ttf_url or 'bold' in ttf_url:
+                    # Normalize both strings for comparison (remove spaces, lowercase)
+                    normalized_font_name = font_name.replace(' ', '').lower()
+                    normalized_filename = font_filename.replace(' ', '').lower()
+                    
+                    if normalized_font_name not in normalized_filename:
+                        # Try to detect variant from URL - check compound variants first
+                        ttf_url_lower = ttf_url.lower()
+                        if 'bolditalic' in ttf_url_lower or 'italicbold' in ttf_url_lower:
+                            variant = 'BoldItalic'
+                        elif 'bold' in ttf_url_lower:
                             variant = 'Bold'
-                        elif 'Italic' in ttf_url or 'italic' in ttf_url:
+                        elif 'italic' in ttf_url_lower:
                             variant = 'Italic'
-                        elif 'Light' in ttf_url or 'light' in ttf_url:
+                        elif 'light' in ttf_url_lower:
                             variant = 'Light'
                         else:
                             variant = 'Regular'
