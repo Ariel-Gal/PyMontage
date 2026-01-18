@@ -175,7 +175,24 @@ def preview():
 @app.route('/get_preview/<filename>')
 def get_preview(filename):
     """Stream preview video"""
-    preview_path = os.path.join(app.config['OUTPUT_FOLDER'], filename)
+    # Validate the filename to prevent path traversal
+    if not filename:
+        return "Invalid filename", 400
+
+    # Disallow any path separators or parent directory references
+    if os.path.sep in filename or (os.path.altsep and os.path.altsep in filename) or '..' in filename:
+        return "Invalid filename", 400
+
+    # Enforce expected naming pattern for preview files
+    if not (filename.startswith('preview_') and filename.endswith('.mp4')):
+        return "Invalid filename", 400
+
+    # Build absolute paths and ensure the target stays within OUTPUT_FOLDER
+    output_folder = os.path.abspath(app.config['OUTPUT_FOLDER'])
+    preview_path = os.path.abspath(os.path.join(output_folder, filename))
+
+    if not preview_path.startswith(output_folder + os.path.sep):
+        return "Invalid filename", 400
     if os.path.exists(preview_path):
         return send_file(preview_path, mimetype='video/mp4')
     return "Preview not found", 404
