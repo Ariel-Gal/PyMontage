@@ -119,10 +119,27 @@ def resolve_font_path(font_name: str) -> Optional[str]:
     if os.path.exists(assets_path):
         return assets_path
 
-    # Windows fonts directory fallback
-    windows_font = os.path.join(r"C:\Windows\Fonts", font_name)
-    if os.path.exists(windows_font):
-        return windows_font
+    # System fonts directory fallback (platform-specific)
+    if os.name == "nt":
+        # Windows system fonts
+        windows_font = os.path.join(r"C:\Windows\Fonts", font_name)
+        if os.path.exists(windows_font):
+            return windows_font
+    else:
+        # Common font directories on Unix-like systems (Linux, macOS)
+        home = Path.home()
+        font_dirs = [
+            "/usr/share/fonts",
+            "/usr/local/share/fonts",
+            str(home / ".local" / "share" / "fonts"),
+            "/System/Library/Fonts",
+            "/Library/Fonts",
+            str(home / "Library" / "Fonts"),
+        ]
+        for font_dir in font_dirs:
+            candidate = os.path.join(font_dir, font_name)
+            if os.path.exists(candidate):
+                return candidate
 
     # Try downloading from Google Fonts (strip extension)
     base_name = os.path.splitext(font_name)[0]
