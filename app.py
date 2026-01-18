@@ -169,7 +169,7 @@ def preview():
         try:
             if os.path.exists(session_upload_path):
                 shutil.rmtree(session_upload_path)
-        except:
+        except Exception:
             pass
 
 @app.route('/get_preview/<filename>')
