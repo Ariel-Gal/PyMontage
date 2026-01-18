@@ -48,7 +48,8 @@ except Exception as e:
 def install_google_font(font_name):
     """
     Downloads a font from Google Fonts, extracts it, and saves to assets/fonts directory.
-    Uses multiple fallback methods to download the font.
+    Automatically detects the font variant (Regular, Bold, Italic, Light) from the URL
+    to ensure the filename matches the actual font style.
     
     Args:
         font_name: Name of the font (e.g., "Heebo", "Roboto")
@@ -66,8 +67,10 @@ def install_google_font(font_name):
     os.makedirs(save_dir, exist_ok=True)
     
     # Check if font already exists (avoid unnecessary downloads)
-    font_path = os.path.join(save_dir, f"{font_name}-Regular.ttf")
-    if os.path.exists(font_path):
+    # Look for any variant of the font (Regular, Bold, Italic, etc.)
+    existing_fonts = [f for f in os.listdir(save_dir) if f.startswith(f"{font_name}-") and f.endswith('.ttf')]
+    if existing_fonts:
+        font_path = os.path.join(save_dir, existing_fonts[0])
         print(f"✓ Font already installed: {font_path}")
         return font_path
 
@@ -87,9 +90,28 @@ def install_google_font(font_name):
             
             if ttf_urls:
                 # Download the first TTF file
-                ttf_response = requests.get(ttf_urls[0], timeout=30)
+                ttf_url = ttf_urls[0]
+                ttf_response = requests.get(ttf_url, timeout=30)
                 if ttf_response.status_code == 200:
-                    font_path = os.path.join(save_dir, f"{font_name}-Regular.ttf")
+                    # Extract font variant from URL to avoid mismatch
+                    # Google Fonts URLs often contain the variant in the filename
+                    # Example: https://fonts.gstatic.com/...FontName-Bold.ttf
+                    font_filename = os.path.basename(ttf_url.split('?')[0])  # Remove query params
+                    
+                    # If the filename doesn't contain the font name, use our naming convention
+                    if font_name.replace(' ', '') not in font_filename:
+                        # Try to detect variant from URL or default to Regular
+                        if 'Bold' in ttf_url or 'bold' in ttf_url:
+                            variant = 'Bold'
+                        elif 'Italic' in ttf_url or 'italic' in ttf_url:
+                            variant = 'Italic'
+                        elif 'Light' in ttf_url or 'light' in ttf_url:
+                            variant = 'Light'
+                        else:
+                            variant = 'Regular'
+                        font_filename = f"{font_name}-{variant}.ttf"
+                    
+                    font_path = os.path.join(save_dir, font_filename)
                     with open(font_path, 'wb') as f:
                         f.write(ttf_response.content)
                     print(f"✅ Font installed: {font_path}")
