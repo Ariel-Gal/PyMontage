@@ -1,13 +1,13 @@
 # 🎬 PyMontage - Automatic Video Slideshow Creator
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.8+-blue.svg)
 ![Flask](https://img.shields.io/badge/flask-3.0.0-green.svg)
 ![License](https://img.shields.io/badge/license-MIT-orange.svg)
 
 **PyMontage** is a powerful web-based application that automatically creates professional video slideshows from your photos and music. Upload your images, select a soundtrack, and let PyMontage do the rest!
 
-**Version 1.0 Release** - Production ready with full feature set including audio crossfading, smart layouts, and comprehensive customization options.
+**Version 1.0.1 Release** - Enhanced with Google Fonts integration, automatic server cleanup, and improved font management system.
 
 ## ✨ Features
 
@@ -18,7 +18,9 @@
 - 📊 **Real-time Progress Bar**: Track video creation progress with detailed status updates
 - ⚙️ **Full Customization**: Control resolution, timing, transitions, fonts, and quality settings
 - 🎬 **Professional Output**: High-quality video output with smooth transitions and title cards
-- 🔤 **Custom Fonts**: Choose from multiple font options for titles and overlays
+- 🔤 **Custom Fonts**: Choose from built-in Windows fonts or download from Google Fonts
+- 🔎 **Font Search**: Search and instantly download any font from Google Fonts library
+- 🧹 **Auto Cleanup**: Automatic cleanup of temporary files and cache on shutdown
 - 🌐 **Web Interface**: Easy-to-use browser-based interface with drag-and-drop support
 - 📱 **Format Support**: Supports JPG, PNG, HEIC, GIF, BMP, TIFF, WebP, and more
 - 🎥 **Hardware Acceleration**: Automatic GPU detection for faster rendering (NVIDIA NVENC)
@@ -137,19 +139,22 @@
   - Bitrate: 2000k (low) to 15000k (ultra)
   - CRF Quality: 18 (best quality) to 32 (smaller file)
 - **Text Styling**:
-  - Font Family: Choose from 10+ Windows fonts
+  - Font Family: Choose from built-in Windows fonts or search and download from Google Fonts
   - Title Font Size: Size for intro/outro text (30-200)
   - Date Font Size: Size for date overlays (20-150)
+  - Font Search: Live search to find and download fonts from Google Fonts library
 - **Image Processing**:
   - Max Image Width: Downscale images to save memory (1920-4800 pixels)
 
 ## 🛠️ Technical Details
 
 ### Architecture
-- **Backend**: Flask (Python web framework)
+- **Backend**: Flask (Python web framework) with signal handlers for graceful shutdown
 - **Video Processing**: MoviePy, OpenCV, FFmpeg
 - **Audio Analysis**: librosa
-- **Frontend**: HTML5, Bootstrap 5, vanilla JavaScript
+- **Frontend**: HTML5, Bootstrap 5, vanilla JavaScript with async font management
+- **Font Management**: Google Fonts API integration with local caching and automatic downloads
+- **Cleanup System**: Automatic cleanup of temporary files, cache, and bytecode on exit
 
 ### File Structure
 ```
