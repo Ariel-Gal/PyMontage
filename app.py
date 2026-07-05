@@ -6,6 +6,9 @@ import signal
 import requests
 import json
 import tempfile
+import glob
+import re
+from PIL import Image
 from flask import Flask, render_template, request, send_file, after_this_request, jsonify
 from video_engine import generate_video_from_web, install_google_font  # Import from video_engine.py
 
@@ -14,6 +17,45 @@ app.config['UPLOAD_FOLDER'] = 'temp_uploads'
 app.config['OUTPUT_FOLDER'] = 'temp_outputs'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['OUTPUT_FOLDER'], exist_ok=True)
+app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 ** 3  # 2 GB upload cap
+
+UUID_RE = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+MEDIA_EXTS = {
+    'video': {'.mp4', '.mov', '.webm', '.mkv'},
+    'audio': {'.mp3', '.wav', '.m4a', '.flac', '.ogg'},
+    'image': {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tif', '.tiff',
+              '.webp', '.heic', '.heif'},
+}
+
+
+def media_type_for(ext):
+    for mtype, exts in MEDIA_EXTS.items():
+        if ext in exts:
+            return mtype
+    return None
+
+
+def resolve_media_path(session, media_id):
+    """Return the stored file for a media id, or None. Validates both parts."""
+    if not UUID_RE.match(session or '') or not re.match(r'^[0-9a-f]{32}$', media_id or ''):
+        return None
+    folder = os.path.join(app.config['UPLOAD_FOLDER'], session)
+    matches = [p for p in glob.glob(os.path.join(folder, media_id + '.*'))
+               if not p.endswith('.thumb.jpg')]
+    return matches[0] if matches else None
+
+
+def probe_media(path, mtype):
+    if mtype == 'image':
+        with Image.open(path) as im:
+            return {'duration': 5.0, 'width': im.width, 'height': im.height}
+    from moviepy.editor import AudioFileClip, VideoFileClip
+    if mtype == 'video':
+        with VideoFileClip(path) as clip:
+            return {'duration': round(clip.duration, 3),
+                    'width': clip.w, 'height': clip.h}
+    with AudioFileClip(path) as clip:
+        return {'duration': round(clip.duration, 3), 'width': 0, 'height': 0}
 
 
 def cleanup_temp_folders():
@@ -122,6 +164,75 @@ def download_font():
     if path and os.path.exists(path):
         return jsonify({'success': True, 'path': path, 'name': name})
     return jsonify({'success': False, 'message': 'Could not download font'}), 502
+
+@app.route('/editor')
+def editor():
+    return render_template('editor.html')
+
+
+@app.route('/api/media', methods=['POST'])
+def upload_media():
+    session = request.form.get('session', '')
+    if not UUID_RE.match(session):
+        return jsonify({'error': 'Invalid session'}), 400
+    file = request.files.get('file')
+    if not file or not file.filename:
+        return jsonify({'error': 'No file'}), 400
+    ext = os.path.splitext(file.filename)[1].lower()
+    mtype = media_type_for(ext)
+    if not mtype:
+        return jsonify({'error': f'Unsupported file type: {ext}'}), 400
+
+    folder = os.path.join(app.config['UPLOAD_FOLDER'], session)
+    os.makedirs(folder, exist_ok=True)
+    media_id = uuid.uuid4().hex
+    path = os.path.join(folder, media_id + ext)
+    file.save(path)
+    try:
+        meta = probe_media(path, mtype)
+    except Exception as e:
+        os.remove(path)
+        return jsonify({'error': f'Could not read file: {e}'}), 400
+    return jsonify({'id': media_id, 'name': file.filename, 'type': mtype,
+                    'url': f'/api/media/{session}/{media_id}', **meta})
+
+
+@app.route('/api/media/<session>/<media_id>')
+def get_media(session, media_id):
+    path = resolve_media_path(session, media_id)
+    if not path:
+        return jsonify({'error': 'Not found'}), 404
+    return send_file(path, conditional=True)  # conditional=True → Range support
+
+
+@app.route('/api/media/<session>/<media_id>/thumb')
+def get_media_thumb(session, media_id):
+    path = resolve_media_path(session, media_id)
+    if not path:
+        return jsonify({'error': 'Not found'}), 404
+    mtype = media_type_for(os.path.splitext(path)[1].lower())
+    if mtype == 'audio':
+        return jsonify({'error': 'No thumbnail for audio'}), 404
+    thumb = os.path.join(os.path.dirname(path), media_id + '.thumb.jpg')
+    if not os.path.exists(thumb):
+        if mtype == 'image':
+            with Image.open(path) as im:
+                im = im.convert('RGB')
+                im.thumbnail((160, 160))
+                im.save(thumb, 'JPEG')
+        else:
+            ffmpeg = shutil.which('ffmpeg')
+            if not ffmpeg:
+                import imageio_ffmpeg
+                ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+            import subprocess
+            subprocess.run([ffmpeg, '-y', '-ss', '0.5', '-i', path,
+                            '-frames:v', '1', '-vf', 'scale=160:-2', thumb],
+                           capture_output=True, timeout=30)
+            if not os.path.exists(thumb):
+                return jsonify({'error': 'Thumbnail failed'}), 500
+    return send_file(thumb, mimetype='image/jpeg')
+
 
 @app.route('/preview', methods=['POST'])
 def preview():
