@@ -8,7 +8,9 @@ import json
 import tempfile
 import glob
 import re
+import threading
 from PIL import Image
+from timeline_renderer import render_project
 from flask import Flask, render_template, request, send_file, after_this_request, jsonify
 from video_engine import generate_video_from_web, install_google_font  # Import from video_engine.py
 
@@ -232,6 +234,103 @@ def get_media_thumb(session, media_id):
             if not os.path.exists(thumb):
                 return jsonify({'error': 'Thumbnail failed'}), 500
     return send_file(thumb, mimetype='image/jpeg')
+
+
+EXPORT_JOBS = {}
+# ponytail: global lock, one export at a time; job queue if concurrent users ever matter
+EXPORT_LOCK = threading.Lock()
+
+
+def _validate_export(data):
+    """Returns (session, project, media_paths) or raises ValueError."""
+    session = data.get('session', '')
+    project = data.get('project')
+    if not UUID_RE.match(session) or not isinstance(project, dict):
+        raise ValueError('Invalid session or project')
+    for key in ('settings', 'media', 'tracks'):
+        if key not in project:
+            raise ValueError(f'Project missing "{key}"')
+    s = project['settings']
+    if not (16 <= int(s.get('width', 0)) <= 7680 and
+            16 <= int(s.get('height', 0)) <= 4320 and
+            1 <= int(s.get('fps', 0)) <= 120):
+        raise ValueError('Invalid project settings')
+    used_ids = {c['mediaId'] for t in project['tracks'] for c in t['clips']}
+    media_paths = {}
+    for mid in used_ids:
+        path = resolve_media_path(session, mid)
+        if not path:
+            raise ValueError(f'Media {mid} not found on server')
+        media_paths[mid] = path
+    return session, project, media_paths
+
+
+@app.route('/api/export', methods=['POST'])
+def start_export():
+    data = request.get_json(silent=True) or {}
+    try:
+        session, project, media_paths = _validate_export(data)
+    except (ValueError, KeyError, TypeError) as e:
+        return jsonify({'error': str(e)}), 400
+
+    if not EXPORT_LOCK.acquire(blocking=False):
+        return jsonify({'error': 'An export is already running'}), 409
+
+    job_id = uuid.uuid4().hex
+    output_path = os.path.join(app.config['OUTPUT_FOLDER'], f'export_{job_id}.mp4')
+    EXPORT_JOBS[job_id] = {'state': 'running', 'percent': 0,
+                           'error': None, 'path': output_path}
+
+    def run():
+        job = EXPORT_JOBS[job_id]
+        try:
+            render_project(project, media_paths, output_path,
+                           progress_cb=lambda p: job.update(percent=int(p * 100)))
+            job.update(state='done', percent=100)
+        except Exception as e:
+            job.update(state='failed', error=str(e))
+            if os.path.exists(output_path):
+                try:
+                    os.remove(output_path)
+                except OSError:
+                    pass
+        finally:
+            EXPORT_LOCK.release()
+
+    threading.Thread(target=run, daemon=True).start()
+    return jsonify({'job': job_id})
+
+
+@app.route('/api/export/<job_id>/status')
+def export_status(job_id):
+    job = EXPORT_JOBS.get(job_id)
+    if not job:
+        return jsonify({'error': 'Unknown job'}), 404
+    return jsonify({'state': job['state'], 'percent': job['percent'],
+                    'error': job['error']})
+
+
+@app.route('/api/export/<job_id>/download')
+def export_download(job_id):
+    job = EXPORT_JOBS.get(job_id)
+    if not job:
+        return jsonify({'error': 'Unknown job'}), 404
+    if job['state'] != 'done':
+        return jsonify({'error': 'Not finished'}), 409
+    path = job['path']
+    if not os.path.exists(path):
+        return jsonify({'error': 'File gone'}), 404
+
+    @after_this_request
+    def cleanup(response):
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+        EXPORT_JOBS.pop(job_id, None)
+        return response
+
+    return send_file(path, as_attachment=True, download_name='export.mp4')
 
 
 @app.route('/preview', methods=['POST'])
