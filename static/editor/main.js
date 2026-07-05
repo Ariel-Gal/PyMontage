@@ -1,5 +1,6 @@
 // static/editor/main.js
-import { loadProject, state } from './state.js';
+import { loadProject } from './state.js';
+import { initMediaPool } from './mediapool.js';
 
 loadProject();
-console.log('PyMontage editor loaded', state.session, state.project);
+initMediaPool();
