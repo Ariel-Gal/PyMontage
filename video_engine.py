@@ -8,6 +8,15 @@ import hashlib
 import os
 import subprocess
 import shutil
+import sys
+
+# Emoji in print() crashes on non-UTF-8 Windows consoles (e.g. cp1255)
+for _stream in (sys.stdout, sys.stderr):
+    if _stream and getattr(_stream, 'encoding', '').lower() not in ('utf-8', 'utf8'):
+        try:
+            _stream.reconfigure(encoding='utf-8', errors='replace')
+        except (AttributeError, OSError):
+            pass
 from datetime import datetime
 from pathlib import Path
 import tempfile

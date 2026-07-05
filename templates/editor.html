@@ -1,0 +1,90 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PyMontage Editor</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='editor.css') }}">
+</head>
+<body class="bg-zinc-950 text-zinc-200 h-screen overflow-hidden select-none">
+  <div class="grid h-full"
+       style="grid-template-rows: 1fr 340px;
+              grid-template-columns: 280px 1fr 300px;
+              grid-template-areas: 'pool monitor side' 'timeline timeline side';">
+
+    <!-- Media pool -->
+    <section style="grid-area: pool"
+             class="border-r border-zinc-800 bg-zinc-900 flex flex-col min-h-0">
+      <header class="px-3 py-2 text-xs font-semibold tracking-wider text-zinc-400 border-b border-zinc-800">
+        MEDIA POOL
+      </header>
+      <div id="pool-drop"
+           class="m-2 p-3 border border-dashed border-zinc-700 rounded text-center text-xs text-zinc-500 cursor-pointer hover:border-violet-500">
+        Drop files here or click to upload
+        <input id="pool-file" type="file" multiple class="hidden">
+      </div>
+      <div id="pool-list" class="flex-1 overflow-y-auto grid grid-cols-2 gap-2 p-2 content-start"></div>
+    </section>
+
+    <!-- Program monitor -->
+    <section style="grid-area: monitor" class="bg-zinc-950 flex flex-col min-h-0">
+      <div class="flex-1 relative flex items-center justify-center bg-black m-2 rounded overflow-hidden">
+        <video id="monitor-video" class="max-h-full max-w-full w-full h-full" playsinline></video>
+        <span id="monitor-canvas-label"
+              class="absolute bottom-2 right-2 text-[10px] text-zinc-500 bg-zinc-900/80 px-2 py-0.5 rounded">
+          editing preview — export is exact
+        </span>
+      </div>
+      <div id="transport" class="flex items-center justify-center gap-3 pb-2">
+        <button id="btn-prev-frame" class="tbtn" title="Previous frame (←)">⏮</button>
+        <button id="btn-play" class="tbtn text-lg" title="Play/Pause (Space)">▶</button>
+        <button id="btn-next-frame" class="tbtn" title="Next frame (→)">⏭</button>
+        <span id="tc" class="font-mono text-sm text-violet-400 ml-3">00:00:00:00</span>
+      </div>
+    </section>
+
+    <!-- Sidebar: inspector + automation + export -->
+    <aside style="grid-area: side"
+           class="border-l border-zinc-800 bg-zinc-900 flex flex-col min-h-0 overflow-y-auto">
+      <header class="px-3 py-2 text-xs font-semibold tracking-wider text-zinc-400 border-b border-zinc-800">
+        INSPECTOR
+      </header>
+      <div id="inspector-body" class="p-3 text-sm text-zinc-500">No clip selected</div>
+
+      <header class="px-3 py-2 text-xs font-semibold tracking-wider text-zinc-400 border-y border-zinc-800">
+        AUTOMATION
+      </header>
+      <div id="automation" class="p-3 flex flex-col gap-2">
+        <button class="abtn" disabled title="Coming soon">🎵 Auto-Montage</button>
+        <button class="abtn" disabled title="Coming soon">✂️ Smart Trim</button>
+        <button class="abtn" disabled title="Coming soon">🖼 Auto-Slideshow</button>
+        <button class="abtn" disabled title="Coming soon">📐 Aspect Presets</button>
+      </div>
+
+      <div class="mt-auto p-3 border-t border-zinc-800">
+        <button id="btn-export"
+                class="w-full py-2 rounded bg-violet-600 hover:bg-violet-500 text-white font-semibold">
+          Export MP4
+        </button>
+        <div id="export-progress" class="hidden mt-2 text-xs text-zinc-400"></div>
+      </div>
+    </aside>
+
+    <!-- Timeline -->
+    <section style="grid-area: timeline"
+             class="border-t border-zinc-800 bg-zinc-900 flex flex-col min-h-0">
+      <div id="timeline-scroll" class="flex-1 overflow-x-auto overflow-y-hidden relative">
+        <div id="ruler" class="h-6 relative border-b border-zinc-800"></div>
+        <div id="tracks" class="relative"></div>
+        <div id="playhead" class="absolute top-0 bottom-0 w-px bg-violet-500 z-30 pointer-events-none">
+          <div class="w-3 h-3 bg-violet-500 -ml-1.5 rotate-45"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div id="monitor-pool" class="hidden"></div>
+  <script type="module" src="{{ url_for('static', filename='editor/main.js') }}"></script>
+</body>
+</html>
