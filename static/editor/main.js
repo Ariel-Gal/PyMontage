@@ -1,2 +1,5 @@
 // static/editor/main.js
-console.log('PyMontage editor loaded');
+import { loadProject, state } from './state.js';
+
+loadProject();
+console.log('PyMontage editor loaded', state.session, state.project);
