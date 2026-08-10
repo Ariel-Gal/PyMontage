@@ -1,3 +1,5 @@
+
+
 # 🎬 PyMontage - Automatic Video Slideshow Creator
 
 ![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)
@@ -161,6 +163,7 @@
 PyMontage/
 ├── app.py                  # Flask web server
 ├── video_engine.py         # Core video creation logic
+├── timeline_renderer.py    # Timeline rendering & export engine
 ├── templates/
 │   └── index.html          # Web interface
 ├── requirements.txt        # Python dependencies
